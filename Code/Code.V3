@@ -1,93 +1,152 @@
 #include <Servo.h>
 
-char buffer[10];   // buffer for incoming serial number
+char buffer[10];   // enough for 0–999999999
 byte index = 0;
 
+// ------------------------- Servos -------------------------
 const int NUM_SERVOS = 6;
 Servo servos[NUM_SERVOS];
 
-uint8_t val = 0;           // current command
-const int STEP_SIZE = 1;   // step per update for smooth movement
+uint8_t val = 0;
+const int STEP_SIZE = 1;
 
-// Current servo positions
+// Current & target positions (logical angles)
 int currentPos[NUM_SERVOS] = {0, 0, 0, 0, 0, 0};
+int targetPos[NUM_SERVOS]  = {0, 0, 0, 0, 0, 0};
 
-// Servo limits
-int minAngle[NUM_SERVOS] = {-85, -55, -80, 0, 0, 0};
-int maxAngle[NUM_SERVOS] = { 90, 150, 140, 90, 90, 180};
+// Per-servo angle limits
+int minAngle[NUM_SERVOS] = {-85, -55, -80, -90, 0, 0};
+int maxAngle[NUM_SERVOS] = { 90, 150, 140, 0, 90, 300};
 
 // Servo pins
 int servoPins[NUM_SERVOS] = {3, 5, 6, 9, 10, 11};
 
-// Microsecond ranges
+// Servo microsecond ranges (minUS, maxUS)
 int minUS[NUM_SERVOS] = {1250, 550, 500, 500, 500, 500};
 int maxUS[NUM_SERVOS] = {2550, 1900, 1800, 1800, 1800, 2500};
 
-// Zero offsets
-int zeroOffset[NUM_SERVOS] = {7, 2, -50, 0, 50, 0};
+int zeroOffset[NUM_SERVOS] = {7, 2, -50, -20, 30, 0};
 
-// Servo update interval
+// Smooth motion update interval (ms)
 const unsigned long SERVO_INTERVAL = 20;
 unsigned long lastUpdate = 0;
 
+// ------------------------- Setup -------------------------
 void setup() {
   Serial.begin(9600);
 
-  // attach all servos
+ 
+  // Attach servos
   for (int i = 0; i < NUM_SERVOS; i++) {
     servos[i].attach(servoPins[i]);
-    moveServo(i, currentPos[i]);
+    currentPos[i] = 0;
+    targetPos[i] = 0;
+    moveServo(i, currentPos[i]); // initial position
+    
   }
+
+
 }
 
+// ------------------------- Main loop -------------------------
 void loop() {
-  // Read incoming serial numbers
-  while (Serial.available()) {
+   while (Serial.available()) {
     char c = Serial.read();
 
     if (c == '\n') {          // end of number
-      buffer[index] = '\0';   // terminate string
-      val = (uint8_t)atoi(buffer);
-
+      buffer[index] = '\0';  // terminate string
+     val = (uint8_t)atoi(buffer);
+       // convert to int
+   
       index = 0;              // reset buffer
-    } else if (isDigit(c)) {
-      if (index < sizeof(buffer) - 1) buffer[index++] = c;
+    }
+    else if (isDigit(c)) {
+      if (index < sizeof(buffer) - 1) {
+        buffer[index++] = c;
+      }
     }
   }
-
-  updateServos();
+  updateServos(); 
 }
 
-// ------------------------- Move servos -------------------------
+// ------------------------- Smooth servo update -------------------------
 void updateServos() {
   unsigned long now = millis();
   if (now - lastUpdate < SERVO_INTERVAL) return;
   lastUpdate = now;
 
+  // Move the servo(s) one step based on current val.
+  // val is treated as "hold-to-move" (level triggered).
+ 
   switch (val) {
-    case 1: if(currentPos[0] - STEP_SIZE >= minAngle[0]) currentPos[0] -= STEP_SIZE; break;
-    case 2: if(currentPos[0] + STEP_SIZE <= maxAngle[0]) currentPos[0] += STEP_SIZE; break;
-    case 3: if(currentPos[1] + STEP_SIZE <= maxAngle[1]) currentPos[1] += STEP_SIZE; break;
-    case 4: if(currentPos[1] - STEP_SIZE >= minAngle[1]) currentPos[1] -= STEP_SIZE; break;
-    case 5: if(currentPos[2] + STEP_SIZE <= maxAngle[2]) currentPos[2] += STEP_SIZE; break;
-    case 6: if(currentPos[2] - STEP_SIZE >= minAngle[2]) currentPos[2] -= STEP_SIZE; break;
-    case 7: if(currentPos[3] - STEP_SIZE >= minAngle[3]) currentPos[3] -= STEP_SIZE; break;
-    case 8: if(currentPos[3] + STEP_SIZE <= maxAngle[3]) currentPos[3] += STEP_SIZE; break;
-    case 9: if(currentPos[4] - STEP_SIZE >= minAngle[4]) currentPos[4] -= STEP_SIZE; break;
-    case 10: if(currentPos[4] + STEP_SIZE <= maxAngle[4]) currentPos[4] += STEP_SIZE; break;
-    case 11: if(currentPos[5] + STEP_SIZE <= maxAngle[5]) currentPos[5] += STEP_SIZE; break;
-    case 12: if(currentPos[5] - STEP_SIZE >= minAngle[5]) currentPos[5] -= STEP_SIZE; break;
+    case 2: // servo 1 increase
+      if (currentPos[0] + STEP_SIZE <= maxAngle[0]) currentPos[0] += STEP_SIZE;
+      break;
+    case 1: // servo 1 decrease
+      if (currentPos[0] - STEP_SIZE >= minAngle[0]) currentPos[0] -= STEP_SIZE;
+      break;
+    case 3:
+      if (currentPos[1] + STEP_SIZE <= maxAngle[1]) currentPos[1] += STEP_SIZE;
+      break;
+    case 4:
+      if (currentPos[1] - STEP_SIZE >= minAngle[1]) currentPos[1] -= STEP_SIZE;
+      break;
+    case 5:
+      if (currentPos[2] + STEP_SIZE <= maxAngle[2]) currentPos[2] += STEP_SIZE;
+      break;
+    case 6:
+      if (currentPos[2] - STEP_SIZE >= minAngle[2]) currentPos[2] -= STEP_SIZE;
+      break;
+    case 7:
+      if (currentPos[3] + STEP_SIZE <= maxAngle[3]) currentPos[3] += STEP_SIZE;
+      break;
+    case 8:
+      if (currentPos[3] - STEP_SIZE >= minAngle[3]) currentPos[3] -= STEP_SIZE;
+      break;
+    case 9:
+      if (currentPos[4] - STEP_SIZE >= minAngle[4]) currentPos[4] -= STEP_SIZE;
+      break;
+    case 10:
+      if (currentPos[4] + STEP_SIZE <= maxAngle[4]) currentPos[4] += STEP_SIZE;
+      break;
+    case 11:
+      if (currentPos[5] + STEP_SIZE <= maxAngle[5]) currentPos[5] += STEP_SIZE;
+      break;
+    case 12:
+      if (currentPos[5] - STEP_SIZE >= minAngle[5]) currentPos[5] -= STEP_SIZE;
+      break;
     case 0:
-    default: break; // stop moving immediately
+    default:
+
+      // do nothing — stop moving immediately
+      break;
   }
 
-  // Apply positions
-  for (int i = 0; i < NUM_SERVOS; i++) moveServo(i, currentPos[i]);
+  // Apply the (possibly changed) currentPos to the servos
+  for (int i = 0; i < NUM_SERVOS; i++) {
+    moveServo(i, currentPos[i]); // your existing moveServo handles zeroOffset, mapping, etc.
+  }
 }
 
+// ------------------------- Move servo safely -------------------------
 void moveServo(int index, int angle) {
-  angle += zeroOffset[index];
-  angle = constrain(angle, minAngle[index], maxAngle[index]);
+   angle += zeroOffset[index];
+
+  // Clamp angle to limits
+  if (angle > maxAngle[index]) angle = maxAngle[index];
+  if (angle < minAngle[index]) angle = minAngle[index];
+
+  // Map to microseconds
   int pulse = map(angle, minAngle[index], maxAngle[index], minUS[index], maxUS[index]);
+ 
   servos[index].writeMicroseconds(pulse);
 }
+
+
+
+
+
+
+
+
+
